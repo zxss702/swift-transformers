@@ -104,13 +104,25 @@ public struct Config {
 }
 
 public class LanguageModelConfigurationFromHub {
-    struct Configurations {
-        var modelConfig: Config
-        var tokenizerConfig: Config?
-        var tokenizerData: Config
+    public struct Configurations {
+        public var modelConfig: Config
+        public var tokenizerConfig: Config?
+        public var tokenizerData: Config
+        
+        public init(modelConfig: Config, tokenizerConfig: Config? = nil, tokenizerData: Config) {
+            self.modelConfig = modelConfig
+            self.tokenizerConfig = tokenizerConfig
+            self.tokenizerData = tokenizerData
+        }
     }
-
+    
+    var config: Configurations? = nil
+    
     private var configPromise: Task<Configurations, Error>? = nil
+    
+    public init(config: Configurations) {
+        self.config = config
+    }
 
     public init(
         modelName: String,
@@ -130,15 +142,28 @@ public class LanguageModelConfigurationFromHub {
         }
     }
 
+    
     public var modelConfig: Config {
         get async throws {
-            try await configPromise!.value.modelConfig
+            if let config {
+                config.modelConfig
+            } else {
+                try await configPromise!.value.modelConfig
+            }
         }
     }
 
     public var tokenizerConfig: Config? {
         get async throws {
-            if let hubConfig = try await configPromise!.value.tokenizerConfig {
+            let hubConfig: Config? = try await {
+                if let config {
+                    return config.tokenizerConfig
+                } else {
+                    return try await configPromise?.value.tokenizerConfig
+                }
+            }()
+            
+            if let hubConfig = hubConfig {
                 // Try to guess the class if it's not present and the modelType is
                 if let _ = hubConfig.tokenizerClass?.stringValue { return hubConfig }
                 guard let modelType = try await modelType else { return hubConfig }
@@ -163,16 +188,24 @@ public class LanguageModelConfigurationFromHub {
 
     public var tokenizerData: Config {
         get async throws {
-            try await configPromise!.value.tokenizerData
+            if let config {
+                config.tokenizerData
+            } else {
+                try await configPromise!.value.tokenizerData
+            }
         }
     }
 
     public var modelType: String? {
         get async throws {
-            try await modelConfig.modelType?.stringValue
+            if let config {
+                config.modelConfig.stringValue
+            } else {
+                try await configPromise!.value.modelConfig.stringValue
+            }
         }
     }
-
+    
     func loadConfig(
         modelName: String,
         hubApi: HubApi = .shared
@@ -211,7 +244,7 @@ public class LanguageModelConfigurationFromHub {
             tokenizerData: tokenizerData
         )
     }
-
+    
     static func fallbackTokenizerConfig(for modelType: String) -> Config? {
         guard let url = Bundle.module.url(forResource: "\(modelType)_tokenizer_config", withExtension: "json") else { return nil }
         do {
