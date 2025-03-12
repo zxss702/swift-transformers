@@ -17,7 +17,7 @@ public class LanguageModel {
     public let maxContextLength: Int
     
     let input_ids = "input_ids"
-    let attention_mask = "attention_mask"
+    let attention_mask = "causal_mask"
     
     struct Configurations {
         var modelConfig: Config
